@@ -1,0 +1,88 @@
+%% MoodLens system architecture
+%% Source of truth for the diagram in README.md.
+%% Preview with: https://mermaid.live  (paste this file's contents)
+
+flowchart TD
+    USER([User post / batch of posts]) --> V
+
+    subgraph INGUARD["Input guardrails - guardrails.py"]
+        V["check_input<br/>type, length, control characters"]
+        CRISIS{"crisis or self-harm<br/>language?"}
+        INJ{"prompt-injection<br/>pattern?"}
+    end
+
+    V -->|invalid| BLOCKED["status: blocked<br/>label: uncertain<br/>no model runs"]
+    V -->|valid| CRISIS
+    CRISIS -->|yes| HOLD["status: safety_hold<br/>988 / crisis resources returned<br/>no mood label is assigned"]
+    CRISIS -->|no| INJ
+    INJ -->|flagged| PLAN
+    INJ -->|clean| PLAN
+
+    subgraph AGENT["MoodAgent - agent.py"]
+        PLAN["1. PLAN<br/>choose which components to consult"]
+        ACT["2. ACT<br/>run components, collect Signals"]
+        FUSE["Weighted vote<br/>retrieval 1.0 / rules 0.9 / ml 0.7 / llm 1.2<br/>noisy-OR over agreeing sources"]
+        CHECK{"3. CHECK<br/>confidence >= 0.55<br/>and agreement >= 0.60?"}
+        REPAIR["4. REPAIR<br/>widen retrieval k: 3 to 7<br/>then optional LLM tie-break"]
+    end
+
+    PLAN --> ACT
+
+    subgraph COMPONENTS["Components"]
+        RULES["Rule-based analyzer<br/>mood_analyzer.py<br/>lexicon + negation + emoji"]
+        RETR["Retriever - RAG<br/>retrieval.py<br/>TF-IDF + cosine top-k"]
+        ML["ML classifier<br/>ml_model.py<br/>bag-of-words + logistic regression"]
+        LLM["LLM adjudicator - optional, off by default<br/>llm_adjudicator.py"]
+    end
+
+    KB[("Knowledge base<br/>43 labeled posts<br/>dataset.py")]
+    KB -.indexed by.-> RETR
+    KB -.trains.-> ML
+
+    ACT --> RULES
+    ACT --> RETR
+    ACT --> ML
+    RULES --> FUSE
+    RETR --> FUSE
+    ML --> FUSE
+    FUSE --> CHECK
+
+    CHECK -->|trustworthy| OUTGUARD
+    CHECK -->|not trustworthy| REPAIR
+    REPAIR --> RETR
+    REPAIR -.->|only if enabled<br/>and not injection-flagged| LLM
+    LLM --> FUSE
+    REPAIR --> RECHECK{"re-check"}
+    RECHECK -->|now trustworthy| OUTGUARD
+    RECHECK -->|still below 0.45| REVIEW["status: needs_review<br/>best guess reported<br/>but flagged for a human"]
+
+    OUTGUARD["Output guardrails<br/>validate_output<br/>label in allowed set, confidence in 0..1"]
+
+    OUTGUARD --> RESULT["Decision<br/>label + confidence + rationale<br/>+ per-component signals + trace"]
+    REVIEW --> RESULT
+    BLOCKED --> RESULT
+    HOLD --> RESULT
+
+    RESULT --> CLI["CLI output<br/>run.py"]
+    RESULT --> JSONL[("logs/decisions.jsonl<br/>one JSON record per decision")]
+
+    subgraph HUMAN["Human and automated checking"]
+        HREV["Human review queue<br/>reports/human_eval.md<br/>needs_review items are read by a person"]
+        EVAL["Reliability harness<br/>evaluate.py<br/>ablation, per-category, calibration,<br/>determinism, guardrails"]
+        TESTS["pytest suite<br/>108 tests"]
+    end
+
+    REVIEW ==> HREV
+    JSONL -.audit trail.-> EVAL
+    HELD[("Held-out set<br/>18 labeled posts<br/>never indexed, never trained on")] --> EVAL
+    EVAL --> REPORT["reports/evaluation_report.md"]
+    HREV --> REPORT
+    TESTS -.guards.-> AGENT
+    HREV -.new labeled examples.-> KB
+
+    classDef safety fill:#ffe6e6,stroke:#cc0000,color:#000
+    classDef store fill:#eef5ff,stroke:#3366cc,color:#000
+    classDef human fill:#fff6e0,stroke:#cc8800,color:#000
+    class HOLD,BLOCKED,CRISIS,INJ safety
+    class KB,HELD,JSONL store
+    class HREV,REVIEW human
