@@ -1,0 +1,9 @@
+# Core runtime. Everything in the README runs with just these.
+scikit-learn>=1.3
+
+# Test suite and reliability harness.
+pytest>=7.4
+
+# Optional: only needed for the LLM tie-breaker (`--use-llm`).
+# The system runs fully offline without it.
+# anthropic>=0.40
