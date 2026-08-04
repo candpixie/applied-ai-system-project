@@ -1,0 +1,51 @@
+$ python -c 'dump the needs_review queue for the held-out set'
+
+input      : "love spending my whole Saturday on a bug I created"
+label      : negative
+confidence : 0.41
+status     : needs_review
+rationale  : fused confidence 0.41 is below the 0.45 review threshold; best guess 'negative' is reported but should not be trusted without a human check
+  - rules     positive  conf=0.55  score=1 (positive: ['love'], negative: [])
+  - ml        negative  conf=0.37  logistic regression p(negative)=0.37 on 3 known term(s)
+  - retrieval negative  conf=0.25  7 neighbour(s), 39% of similarity weight on 'negative' :: "The package arrives on Thursday" [neutral] sim=0.19; "the library closes at nine on Sundays" [neutral] sim=0.16; "I love this class so much" [positive] sim=0.15; "wonderful, the wifi died again right before my demo" [negative] sim=0.14; "oh fantastic, my code broke five minutes before the deadline" [negative] sim=0.13; "I absolutely love getting stuck in traffic" [negative] sim=0.13; "I love the design and I hate the price" [mixed] sim=0.12
+  trace: guardrails:ok -> plan:rules+retrieval+ml -> act:3/3 signals -> check:conf=0.42,agree=0.46 -> repair:retrieval k=3->7 -> recheck:conf=0.41,agree=0.51 -> final:negative
+human label   : negative
+agent correct : yes
+
+input      : "perfect timing for the printer to die, really appreciate it"
+label      : neutral
+confidence : 0.44
+status     : needs_review
+rationale  : fused confidence 0.44 is below the 0.45 review threshold; best guess 'neutral' is reported but should not be trusted without a human check
+  - rules     neutral   conf=0.30  score=0 (positive: [], negative: [])
+  - ml        neutral   conf=0.35  logistic regression p(neutral)=0.35 on 5 known term(s)
+  - retrieval positive  conf=0.41  5 neighbour(s), 49% of similarity weight on 'positive' :: "So excited for the weekend" [positive] sim=0.39; "attached the file to the email" [neutral] sim=0.22; "sad it ended, grateful it happened" [mixed] sim=0.19; "meeting got moved to 3pm" [neutral] sim=0.15; "cant say I hated it" [positive] sim=0.14
+  trace: guardrails:ok -> plan:rules+retrieval+ml -> act:3/3 signals -> check:conf=0.44,agree=0.56 -> repair:retrieval k=3->7 -> recheck:conf=0.44,agree=0.56 -> final:neutral
+human label   : negative
+agent correct : NO
+
+input      : "I rescheduled the appointment for next week"
+label      : neutral
+confidence : 0.44
+status     : needs_review
+rationale  : fused confidence 0.44 is below the 0.45 review threshold; best guess 'neutral' is reported but should not be trusted without a human check
+  - rules     neutral   conf=0.30  score=0 (positive: [], negative: [])
+  - ml        neutral   conf=0.34  logistic regression p(neutral)=0.34 on 2 known term(s)
+  - retrieval negative  conf=0.33  6 neighbour(s), 37% of similarity weight on 'negative' :: "So excited for the weekend" [positive] sim=0.36; "im so cooked for this exam 😭" [negative] sim=0.23; "love waking up at 5am for no reason, truly living the dream" [negative] sim=0.21; "attached the file to the email" [neutral] sim=0.15; "I love the design and I hate the price" [mixed] sim=0.14; "took the train instead of the bus today" [neutral] sim=0.12
+  trace: guardrails:ok -> plan:rules+retrieval+ml -> act:3/3 signals -> check:conf=0.43,agree=0.55 -> repair:retrieval k=3->7 -> recheck:conf=0.44,agree=0.61 -> final:neutral
+human label   : neutral
+agent correct : yes
+
+input      : "proud of the work, upset about the deadline"
+label      : positive
+confidence : 0.41
+status     : needs_review
+rationale  : fused confidence 0.41 is below the 0.45 review threshold; best guess 'positive' is reported but should not be trusted without a human check
+  - rules     positive  conf=0.55  score=1 (positive: ['proud'], negative: ['upset'])
+  - ml        neutral   conf=0.42  logistic regression p(neutral)=0.42 on 10 known term(s)
+  - retrieval negative  conf=0.32  4 neighbour(s), 46% of similarity weight on 'negative' :: "lowkey stressed but highkey proud of myself" [mixed] sim=0.27; "took the train instead of the bus today" [neutral] sim=0.24; "I am not excited about the schedule change" [negative] sim=0.23; "oh fantastic, my code broke five minutes before the deadline" [negative] sim=0.20
+  trace: guardrails:ok -> plan:rules+retrieval+ml -> act:3/3 signals -> check:conf=0.42,agree=0.46 -> repair:retrieval k=3->7 -> recheck:conf=0.41,agree=0.45 -> final:positive
+human label   : mixed
+agent correct : NO
+
+4/18 held-out posts were routed to a human.

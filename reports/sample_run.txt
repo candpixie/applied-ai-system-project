@@ -1,0 +1,68 @@
+$ python run.py demo
+
+=== MoodLens demo ===
+
+input      : "oh perfect, my laptop died right before the deadline"
+label      : negative
+confidence : 0.84
+status     : ok
+rationale  : retrieval, ml agreed on 'negative' (82% of vote weight)
+  - rules     neutral   conf=0.30  score=0 (positive: [], negative: [])
+  - retrieval negative  conf=0.79  2 neighbour(s), 100% of similarity weight on 'negative' :: "oh fantastic, my code broke five minutes before the deadline" [negative] sim=0.47; "wonderful, the wifi died again right before my demo" [negative] sim=0.41
+  - ml        negative  conf=0.60  logistic regression p(negative)=0.60 on 10 known term(s)
+  trace: guardrails:ok -> plan:rules+retrieval+ml -> act:3/3 signals -> check:conf=0.84,agree=0.82 -> final:negative
+
+input      : "not bad at all, I actually had fun"
+label      : positive
+confidence : 0.95
+status     : ok
+rationale  : rules, retrieval, ml agreed on 'positive' (100% of vote weight)
+  - rules     positive  conf=0.65  score=2 (positive: ['not+bad', 'fun'], negative: [])
+  - retrieval positive  conf=0.68  3 neighbour(s), 100% of similarity weight on 'positive' :: "this is not terrible at all" [positive] sim=0.39; "not bad honestly, kinda enjoyed it" [positive] sim=0.32; "Had a great time at dinner tonight" [positive] sim=0.18
+  - ml        positive  conf=0.70  logistic regression p(positive)=0.73 on 8 known term(s)
+  trace: guardrails:ok -> plan:rules+retrieval+ml -> act:3/3 signals -> check:conf=0.95,agree=1.00 -> final:positive
+
+input      : "grateful for the trip but the flights were exhausting"
+label      : mixed
+confidence : 0.56
+status     : ok
+rationale  : ml, retrieval agreed on 'mixed' (56% of vote weight)
+  - rules     positive  conf=0.65  score=2 (positive: ['grateful'], negative: [])
+  - ml        mixed     conf=0.49  logistic regression p(mixed)=0.49 on 7 known term(s)
+  - retrieval mixed     conf=0.41  3 neighbour(s), 54% of similarity weight on 'mixed' :: "So excited for the weekend" [positive] sim=0.35; "the food was amazing but the service was awful" [mixed] sim=0.28; "sad it ended, grateful it happened" [mixed] sim=0.13
+  trace: guardrails:ok -> plan:rules+retrieval+ml -> act:3/3 signals -> check:conf=0.56,agree=0.56 -> repair:retrieval k=3->7 -> recheck:conf=0.56,agree=0.56 -> final:mixed
+
+input      : "the shipment arrives on Tuesday"
+label      : neutral
+confidence : 0.95
+status     : ok
+rationale  : rules, retrieval, ml agreed on 'neutral' (100% of vote weight)
+  - rules     neutral   conf=0.30  score=0 (positive: [], negative: [])
+  - retrieval neutral   conf=0.90  2 neighbour(s), 100% of similarity weight on 'neutral' :: "The package arrives on Thursday" [neutral] sim=0.62; "the library closes at nine on Sundays" [neutral] sim=0.18
+  - ml        neutral   conf=0.63  logistic regression p(neutral)=0.63 on 4 known term(s)
+  trace: guardrails:ok -> plan:rules+retrieval+ml -> act:3/3 signals -> check:conf=0.95,agree=1.00 -> final:neutral
+
+input      : "quarterly synergy realignment scheduled for Q3"
+label      : negative
+confidence : 0.33
+status     : needs_review
+rationale  : fused confidence 0.33 is below the 0.45 review threshold; best guess 'negative' is reported but should not be trusted without a human check
+  - rules     neutral   conf=0.30  score=0 (positive: [], negative: [])
+  - ml        None      conf=0.00  only 1 of 6 words are in the training vocabulary, not enough to predict from
+  - retrieval negative  conf=0.40  3 neighbour(s), 59% of similarity weight on 'negative' :: "So excited for the weekend" [positive] sim=0.31; "im so cooked for this exam 😭" [negative] sim=0.27; "love waking up at 5am for no reason, truly living the dream" [negative] sim=0.18
+  trace: guardrails:ok -> plan:rules+retrieval+ml -> act:2/3 signals -> check:conf=0.33,agree=0.60 -> repair:retrieval k=3->7 -> recheck:conf=0.33,agree=0.60 -> final:negative
+
+input      : "honestly I want to die, nothing is helping"
+label      : uncertain
+confidence : 0.00
+status     : safety_hold
+rationale  : This text contains language associated with crisis or self-harm. MoodLens does not assign a mood label to it and does not attempt to assess risk. If you or someone you know needs support in the US, call or text 988 (Suicide & Crisis Lifeline) or text HOME to 741741. Outside the US, see https://findahelpline.com.
+  trace: guardrails:safety_hold
+
+input      : ""
+label      : uncertain
+confidence : 0.00
+status     : blocked
+rationale  : input is empty or whitespace only
+  trace: guardrails:blocked
+
