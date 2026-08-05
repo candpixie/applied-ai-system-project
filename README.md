@@ -20,7 +20,7 @@ wrong response to that.
 | vs its own best single component (0.72) | **not** significant, p = 0.50 |
 | Accuracy when confident (>= 0.60) | **1.00** (8/8) |
 | Accuracy when not confident | 0.70 (7/10) |
-| Tests | 114 passing |
+| Tests | 144 passing |
 | Runs offline | Yes. No API key needed for anything in this README |
 
 Those last two rows matter as much as the first. Eighteen evaluation posts means
@@ -57,7 +57,7 @@ still visible in every output.
 | A label, nothing more | Label + calibrated confidence + rationale + per-component signals + execution trace |
 | One shot, no recovery | Plan, act, check, repair, and abstain if repair does not work |
 | Evaluated on its own training data | Evaluated on an 18-post held-out set that is never indexed and never trained on |
-| No tests | 114 tests plus a five-experiment reliability harness |
+| No tests | 144 tests plus a five-experiment reliability harness |
 | No input handling | Input validation, crisis-language triage, prompt-injection flagging, output validation |
 | Scoring loop duplicated in three methods | One shared scoring pass, with a test that the three can never disagree |
 
@@ -132,7 +132,7 @@ python run.py analyze "your text here"
 python run.py analyze "your text" --json
 python run.py interactive          # REPL
 
-python -m pytest tests/ -q         # 114 tests
+python -m pytest tests/ -q         # 144 tests
 python evaluate.py --print         # writes reports/evaluation_report.md
 ```
 
@@ -234,6 +234,86 @@ rationale  : This text contains language associated with crisis or self-harm. Mo
 
 ---
 
+## Learning from corrections
+
+The system can be taught. Corrections change what it does, they persist, and
+they generalize past the exact sentence you typed:
+
+```
+$ python run.py analyze "imagine having to take 10 classes a day, so fun"
+label      : positive                       <- wrong, sarcasm
+
+$ python run.py teach "imagine having to take 10 classes a day, so fun" negative
+was  : positive
+now  : negative
+kept : True
+note : lesson kept: no regression on the knowledge base (0.80 -> 0.80, 0 other post(s) improved)
+
+$ python run.py analyze "imagine having to write 5 essays tonight, so fun" --learn
+label      : negative                       <- a sentence it was never taught
+confidence : 0.83
+```
+
+That second result is the point. The lesson is not a lookup table entry. The
+corrected post joins the retrieval index, so a *different* sentence in the same
+construction now finds it as a neighbour.
+
+**Three things keep this from destroying the evaluation.**
+
+**1. Held-out posts cannot be taught.** Teaching the system a post from the
+evaluation set would let it memorise its own answer key, and every accuracy
+number in this README would become meaningless. The store refuses, by name:
+
+```
+$ python run.py teach "this whole week has been wonderful" negative
+rejected: this post is in the held-out evaluation set. Teaching it would let the
+system memorise its own answer key and report an accuracy that means nothing
+```
+
+**2. Learning is off by default and lives in a separate file.** `dataset.py` is
+frozen and never written to. Lessons go to `learned_examples.jsonl`, which
+`evaluate.py` and the test suite ignore, so the reported numbers always describe
+the shipped system rather than whatever this particular machine has been taught.
+Delete the file to return to stock behaviour.
+
+**3. A lesson has to prove it did no harm.** This is the part that came out of a
+bug earlier in the project: adding examples to a small corpus is not a local
+change. A new document shifts the inverse-document-frequency of common words and
+perturbs every similarity in the index at once, which is how a ten-post addition
+once broke posts that shared no vocabulary with it. So `teach()` runs a
+leave-one-out pass over the knowledge base before and after, and **rolls the
+lesson back if any post that previously worked stops working**:
+
+```
+$ python run.py teach "the package arrives on Friday" negative
+kept : False
+note : lesson rolled back: it broke 1 knowledge-base post(s) that previously
+       classified correctly, for example "The package arrives on Thursday".
+       Adding an example shifts term weights across the whole index, so a
+       correct label can still make the system worse
+```
+
+Crisis-flagged text is also refused outright, because a disclosure must not
+become a labeled training example sitting in a corpus that gets printed in demos.
+
+### What this gate does not do
+
+It checks whether a lesson **damaged** anything. It cannot check whether a lesson
+is **true**. Teaching `"so sad and lonely tonight"` as `positive` is accepted,
+because text unlike anything in the corpus damages nothing on its way in. The
+person doing the teaching is the authority on correctness and the system has no
+independent way to check them. That is pinned by a test named
+`test_the_gate_cannot_tell_whether_a_lesson_is_TRUE`, so nobody mistakes the
+gate for validation.
+
+```bash
+python run.py teach "some post" negative   # teach a correction
+python run.py analyze "some post" --learn  # analyze using what has been learned
+python run.py memory                       # show every lesson stored
+```
+
+---
+
 ## Design decisions and trade-offs
 
 **Three weak components instead of one strong one.** A single large model would
@@ -279,7 +359,7 @@ and made it mean something.
 
 ## Testing summary
 
-**114 tests passing** (`reports/test_output.txt`), plus a five-experiment
+**144 tests passing** (`reports/test_output.txt`), plus a five-experiment
 reliability harness (`python evaluate.py`, output in
 `reports/evaluation_report.md`).
 
@@ -428,7 +508,7 @@ moodlens/
   logs.py             Structured JSONL decision logging
   signals.py          Signal and Decision data shapes
 
-tests/                114 tests across four modules
+tests/                144 tests across five modules
 diagrams/
   architecture.mmd    System architecture (Mermaid source)
 reports/

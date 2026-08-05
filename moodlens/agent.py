@@ -24,8 +24,10 @@ much to stand on.
 from typing import Dict, List, Optional, Tuple
 
 from . import llm_adjudicator
-from .guardrails import check_input, validate_output
+from .dataset import KNOWLEDGE_BASE
+from .guardrails import check_input, detect_crisis_language, validate_output
 from .logs import get_logger, log_decision
+from .memory import LearningStore, RejectedLesson
 from .ml_model import MLMoodModel
 from .mood_analyzer import MoodAnalyzer
 from .retrieval import MoodRetriever
@@ -57,13 +59,37 @@ class MoodAgent:
         corpus: Optional[List[Tuple[str, str]]] = None,
         use_llm: bool = False,
         k: int = DEFAULT_K,
+        use_memory: bool = False,
     ) -> None:
-        self.rules = MoodAnalyzer()
-        self.retriever = MoodRetriever(corpus)
-        self.ml = MLMoodModel(corpus)
+        """
+        Args:
+            corpus: override the labeled examples entirely. Used by tests and
+                by the evaluation harness.
+            use_memory: load human corrections from the learning store on top
+                of the frozen knowledge base. Off by default on purpose, so
+                that `evaluate.py` and the test suite measure the shipped
+                system rather than whatever this machine has been taught.
+        """
+        self.use_memory = use_memory and corpus is None
+        self.store = LearningStore() if self.use_memory else None
         self.use_llm = use_llm
         self.k = k
         self.logger = get_logger()
+        self.rules = MoodAnalyzer()
+        self._build(corpus)
+
+    def _build(self, corpus: Optional[List[Tuple[str, str]]] = None) -> None:
+        """(Re)build the corpus-backed components.
+
+        Called at startup and again after every accepted lesson, because both
+        the retriever's index and the ML model's vocabulary are fitted to the
+        corpus and cannot be updated in place.
+        """
+        if corpus is None and self.store is not None:
+            corpus = list(KNOWLEDGE_BASE) + self.store.examples()
+        self._corpus = corpus
+        self.retriever = MoodRetriever(corpus)
+        self.ml = MLMoodModel(corpus)
 
     # ------------------------------------------------------------------
     # Fusion
@@ -262,6 +288,110 @@ class MoodAgent:
         )
         log_decision(decision.to_dict())
         return decision
+
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Learning from corrections
+    # ------------------------------------------------------------------
+
+    def self_check(self) -> Tuple[float, set]:
+        """Leave-one-out pass over the frozen knowledge base.
+
+        Every base post is classified with itself excluded from retrieval, so
+        it cannot look up its own answer. Returns (accuracy, set of indices the
+        agent currently gets right).
+
+        This deliberately never touches the held-out set. Using the evaluation
+        data to decide what to learn would contaminate the only honest
+        measurement the project has.
+        """
+        correct = set()
+        for i, (text, truth) in enumerate(KNOWLEDGE_BASE):
+            if self.analyze(text, exclude_exact=True).label == truth:
+                correct.add(i)
+        return len(correct) / len(KNOWLEDGE_BASE), correct
+
+    def teach(self, text: str, label: str) -> Dict[str, object]:
+        """Accept a human correction, then verify it actually helped.
+
+        The sequence matters. Adding examples to a small corpus is not free: it
+        shifts the inverse-document-frequency of common words and perturbs
+        every similarity in the index at once, so a lesson can fix the post it
+        came from and quietly break unrelated ones. This method measures
+        leave-one-out accuracy before and after, and **rolls the lesson back if
+        the system got worse**.
+
+        Returns a dict describing what happened, including whether the lesson
+        was kept, so a caller can tell the user rather than silently discarding
+        their correction.
+        """
+        if self.store is None:
+            raise RejectedLesson(
+                "this agent was built without memory (use_memory=False)"
+            )
+
+        # A crisis disclosure must never become a labeled training example.
+        # It is not a mood-classification problem and storing it would put
+        # someone's disclosure into a corpus that gets printed in demos.
+        if detect_crisis_language(text if isinstance(text, str) else ""):
+            raise RejectedLesson(
+                "this text triggers the crisis guardrail and will not be "
+                "stored as a training example"
+            )
+
+        self.store.validate(text, label)  # raises RejectedLesson with a reason
+        before, before_correct = self.self_check()
+
+        self.store.add(text, label)
+        self._build()
+        after, after_correct = self.self_check()
+
+        # "Do no harm" is stricter than "do not lower the average". Aggregate
+        # accuracy can stay flat while one post is fixed and an unrelated one
+        # breaks, and an aggregate over 49 posts barely moves for a single
+        # lesson anyway: an earlier version of this gate let five of seven
+        # deliberately mislabelled lessons through. Rejecting any regression on
+        # a post that already worked catches those.
+        broke = before_correct - after_correct
+        if broke:
+            examples = [KNOWLEDGE_BASE[i][0] for i in sorted(broke)[:2]]
+            self.store.remove_last()
+            self._build()
+            self.logger.warning(
+                "rejected lesson %r: it broke %d working post(s)", text, len(broke)
+            )
+            return {
+                "kept": False,
+                "text": text,
+                "label": label,
+                "before": before,
+                "after": after,
+                "broke": len(broke),
+                "reason": (
+                    f"lesson rolled back: it broke {len(broke)} knowledge-base "
+                    f"post(s) that previously classified correctly, for example "
+                    + "; ".join(f'"{e}"' for e in examples)
+                    + ". Adding an example shifts term weights across the whole "
+                    "index, so a correct label can still make the system worse"
+                ),
+            }
+
+        fixed = after_correct - before_correct
+        return {
+            "kept": True,
+            "text": text,
+            "label": label,
+            "before": before,
+            "after": after,
+            "broke": 0,
+            "fixed": len(fixed),
+            "reason": (
+                f"lesson kept: no regression on the knowledge base "
+                f"({before:.2f} -> {after:.2f}, {len(fixed)} other post(s) improved)"
+            ),
+            "learned_total": len(self.store),
+        }
 
     # ------------------------------------------------------------------
 

@@ -69,7 +69,7 @@ flowchart TD
     subgraph HUMAN["Human and automated checking"]
         HREV["Human review queue<br/>reports/human_eval.md<br/>needs_review items are read by a person"]
         EVAL["Reliability harness<br/>evaluate.py<br/>ablation, per-category, calibration,<br/>determinism, guardrails"]
-        TESTS["pytest suite<br/>114 tests"]
+        TESTS["pytest suite<br/>144 tests"]
     end
 
     REVIEW ==> HREV
@@ -78,7 +78,33 @@ flowchart TD
     EVAL --> REPORT["reports/evaluation_report.md"]
     HREV --> REPORT
     TESTS -.guards.-> AGENT
-    HREV -.->|"manual, NOT implemented:<br/>a person labels a reviewed post<br/>and edits dataset.py by hand"| KB
+    HREV ==>|"person supplies the correct label"| TEACH
+
+    subgraph LEARN["Learning from corrections - memory.py"]
+        TEACH["agent.teach text, label"]
+        LGUARD{"allowed?<br/>not held-out, not crisis,<br/>valid label, not a duplicate"}
+        SELF1["self-check BEFORE<br/>leave-one-out over the<br/>knowledge base"]
+        APPLY["append lesson, rebuild<br/>retriever + ML model"]
+        SELF2{"self-check AFTER<br/>did any working post break?"}
+        KEEP["lesson kept"]
+        ROLL["lesson ROLLED BACK<br/>correction was right but<br/>it damaged other posts"]
+    end
+
+    TEACH --> LGUARD
+    LGUARD -->|no| LREJ["rejected, with a reason<br/>the person can act on"]
+    LGUARD -->|yes| SELF1
+    SELF1 --> APPLY
+    APPLY --> SELF2
+    SELF2 -->|nothing broke| KEEP
+    SELF2 -->|something broke| ROLL
+    ROLL -.restores.-> APPLY
+
+    LSTORE[("learned_examples.jsonl<br/>separate from the frozen base<br/>ignored by evaluate.py")]
+    KEEP --> LSTORE
+    LSTORE -.loaded alongside KB<br/>only when use_memory=True.-> RETR
+    LSTORE -.-> ML
+
+    KB -.frozen, never written to<br/>by the learning loop.-> LSTORE
 
     classDef safety fill:#ffe6e6,stroke:#cc0000,color:#000
     classDef store fill:#eef5ff,stroke:#3366cc,color:#000

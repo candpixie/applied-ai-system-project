@@ -8,3 +8,4 @@ logs/
 .idea/
 .vscode/
 .gstack/
+learned_examples.jsonl

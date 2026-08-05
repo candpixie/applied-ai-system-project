@@ -14,6 +14,7 @@ import sys
 from typing import List
 
 from moodlens import MoodAgent
+from moodlens.memory import RejectedLesson
 
 # None of these appear in the knowledge base, so the demo shows the system
 # generalizing rather than looking up an answer it was handed. The last three
@@ -36,10 +37,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "command",
-        choices=["analyze", "demo", "interactive"],
-        help="analyze one string, run the scripted demo, or start a REPL",
+        choices=["analyze", "demo", "interactive", "teach", "memory"],
+        help=(
+            "analyze one string, run the scripted demo, start a REPL, "
+            "teach a correction, or show what has been learned"
+        ),
     )
     parser.add_argument("text", nargs="?", help="text to analyze (for 'analyze')")
+    parser.add_argument(
+        "label",
+        nargs="?",
+        help="correct label (for 'teach'): positive, negative, neutral or mixed",
+    )
+    parser.add_argument(
+        "--learn",
+        action="store_true",
+        help="load previously taught corrections when analyzing",
+    )
     parser.add_argument(
         "--json", action="store_true", help="emit the full decision as JSON"
     )
@@ -63,7 +77,36 @@ def emit(decision, as_json: bool) -> None:
 
 def main(argv: List[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    agent = MoodAgent(use_llm=args.use_llm, k=args.k)
+
+    # Teaching and inspecting memory always use it; analysis only if asked, so
+    # the default behaviour of this CLI stays the shipped behaviour.
+    wants_memory = args.learn or args.command in {"teach", "memory"}
+    agent = MoodAgent(use_llm=args.use_llm, k=args.k, use_memory=wants_memory)
+
+    if args.command == "memory":
+        store = agent.store
+        print(f"learning store: {store.path}")
+        print(f"lessons: {len(store)}  {store.stats() or ''}")
+        for text, label in store.examples():
+            print(f'  [{label:<8}] "{text}"')
+        return 0
+
+    if args.command == "teach":
+        if args.text is None or args.label is None:
+            print('usage: run.py teach "some post" negative', file=sys.stderr)
+            return 2
+        before = agent.analyze(args.text).label
+        try:
+            result = agent.teach(args.text, args.label)
+        except RejectedLesson as exc:
+            print(f"rejected: {exc}", file=sys.stderr)
+            return 1
+
+        print(f'was  : {before}')
+        print(f'now  : {agent.analyze(args.text).label}')
+        print(f'kept : {result["kept"]}')
+        print(f'note : {result["reason"]}')
+        return 0
 
     if args.command == "analyze":
         if args.text is None:

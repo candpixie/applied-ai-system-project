@@ -184,6 +184,26 @@ closed it. This last case survived the data fix because "awful" was already in
 the lexicon, so its failure really is in fusion, and it stays pinned as a
 known-failure test.
 
+**The learning loop trusts the person teaching it.** The system accepts
+corrections, and a correction generalizes: teaching one sarcastic post makes a
+different sentence in the same construction classify correctly too. Before a
+lesson is kept it must pass a leave-one-out pass over the knowledge base and
+break nothing that previously worked, and a lesson that breaks something is
+rolled back automatically.
+
+That gate checks whether a lesson **damaged** the system. It cannot check
+whether a lesson is **true**. Teaching `"so sad and lonely tonight"` as
+`positive` is accepted, because text unlike anything already in the corpus
+damages nothing on its way in. Anyone who can teach the system can degrade it,
+slowly, in a direction the gate cannot see. In a real deployment this would need
+reviewer identity, an audit trail of who taught what, and periodic re-evaluation
+against a set no teacher can touch. Here it has none of that, which is one more
+reason this is coursework and not a product.
+
+Two things are protected absolutely: held-out posts cannot be taught, so the
+system can never memorise its own answer key, and crisis-flagged text is never
+stored as a training example.
+
 **The evaluation set is too small to support the comparison it is used for.**
 Eighteen posts means one post is worth 5.6 percentage points. Bootstrapping the
 headline 0.83 gives a 95% interval of [0.67, 1.00], and pairing the systems item
@@ -237,7 +257,7 @@ here is not a passing grade, it is a gap.
 Full detail in `reports/evaluation_report.md`, `reports/human_eval.md` and
 `reports/test_output.txt`.
 
-**114 automated tests pass.** Five reliability experiments:
+**144 automated tests pass.** Five reliability experiments:
 
 | Experiment | Result |
 | --- | --- |
