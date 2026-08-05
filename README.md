@@ -18,7 +18,7 @@ wrong response to that.
 | Held-out accuracy | **0.83** (15/18), against 0.50 for the original rule-based lab |
 | Accuracy when confident (>= 0.60) | **1.00** (7/7) |
 | Accuracy when not confident | 0.73 (8/11) |
-| Tests | 108 passing |
+| Tests | 114 passing |
 | Runs offline | Yes. No API key needed for anything in this README |
 
 ---
@@ -49,7 +49,7 @@ still visible in every output.
 | A label, nothing more | Label + calibrated confidence + rationale + per-component signals + execution trace |
 | One shot, no recovery | Plan, act, check, repair, and abstain if repair does not work |
 | Evaluated on its own training data | Evaluated on an 18-post held-out set that is never indexed and never trained on |
-| No tests | 108 tests plus a five-experiment reliability harness |
+| No tests | 114 tests plus a five-experiment reliability harness |
 | No input handling | Input validation, crisis-language triage, prompt-injection flagging, output validation |
 | Scoring loop duplicated in three methods | One shared scoring pass, with a test that the three can never disagree |
 
@@ -124,7 +124,7 @@ python run.py analyze "your text here"
 python run.py analyze "your text" --json
 python run.py interactive          # REPL
 
-python -m pytest tests/ -q         # 108 tests
+python -m pytest tests/ -q         # 114 tests
 python evaluate.py --print         # writes reports/evaluation_report.md
 ```
 
@@ -271,7 +271,7 @@ and made it mean something.
 
 ## Testing summary
 
-**108 tests passing** (`reports/test_output.txt`), plus a five-experiment
+**114 tests passing** (`reports/test_output.txt`), plus a five-experiment
 reliability harness (`python evaluate.py`, output in
 `reports/evaluation_report.md`).
 
@@ -342,6 +342,18 @@ carrying information, not decoration.
   weight 2 fixed one test and silently broke `mixed` detection on "proud of the
   work, upset about the deadline", because `mixed` requires both sides to reach
   2 and "upset" is only 1.
+- **A second retrieval fix, also reverted.** Found by hand-testing profanity,
+  which the original lab's word lists did not contain at all: `"fuck life"`
+  scored exactly zero and came back `neutral`. Adding profanity to the lexicon
+  fixed that one. But `"this is fucking awful"` still returns **positive at
+  confidence 0.65**, because it retrieves `"This is fine"` at similarity 0.51
+  on the shared words *"this is"*, and that neighbour outvotes the rules
+  component, which correctly found "awful". I tried sklearn stop-word removal
+  (keeping negation and discourse markers): held-out accuracy fell 0.83 to 0.50
+  and sarcasm 2/3 to 0/3, because the sarcastic posts match each other through
+  function-word phrasing. Reverted. **The signal that makes retrieval work on
+  sarcasm is the same signal that makes it fail here.** Three of these cases
+  are pinned as known-failure tests so they cannot regress unnoticed.
 
 ### What I would do next
 
@@ -370,7 +382,7 @@ moodlens/
   logs.py             Structured JSONL decision logging
   signals.py          Signal and Decision data shapes
 
-tests/                108 tests across four modules
+tests/                114 tests across four modules
 diagrams/
   architecture.mmd    System architecture (Mermaid source)
 reports/

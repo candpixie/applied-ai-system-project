@@ -69,7 +69,7 @@ flowchart TD
     subgraph HUMAN["Human and automated checking"]
         HREV["Human review queue<br/>reports/human_eval.md<br/>needs_review items are read by a person"]
         EVAL["Reliability harness<br/>evaluate.py<br/>ablation, per-category, calibration,<br/>determinism, guardrails"]
-        TESTS["pytest suite<br/>108 tests"]
+        TESTS["pytest suite<br/>114 tests"]
     end
 
     REVIEW ==> HREV
@@ -78,7 +78,7 @@ flowchart TD
     EVAL --> REPORT["reports/evaluation_report.md"]
     HREV --> REPORT
     TESTS -.guards.-> AGENT
-    HREV -.new labeled examples.-> KB
+    HREV -.->|"manual, NOT implemented:<br/>a person labels a reviewed post<br/>and edits dataset.py by hand"| KB
 
     classDef safety fill:#ffe6e6,stroke:#cc0000,color:#000
     classDef store fill:#eef5ff,stroke:#3366cc,color:#000

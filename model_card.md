@@ -161,6 +161,20 @@ honestly" labeled `negative` at confidence 0.49, happened exactly this way: two
 components agreed while both were ignorant of the same word, and the system read
 that as support.
 
+**Weak agreeing signals can outvote a strong correct one.** The clearest
+reproduction: `"this is fucking awful"`, `"wtf was that"` and `"this sucks"` all
+come back positive. In each, the rules component reads the profanity correctly
+and says negative at its highest confidence, then loses, because retrieval
+matched junk neighbours on shared function words and the ML model voted off one
+or two known terms. Noisy-OR fusion treats those two low-information signals
+agreeing as corroboration. It is the correlated-failure problem above, and it is
+not rare: it fires on any short post whose vocabulary the components do not
+know. Two retrieval-side fixes were tried and both cost more held-out accuracy
+than they bought, because the function-word phrasing that produces the bad
+matches is the same phrasing that makes sarcasm and `mixed` work. The real fix
+is in fusion, not retrieval: stop counting agreement between two weak signals as
+evidence. All three cases are pinned as known-failure tests.
+
 **Thresholds were tuned against the held-out set.** The confidence floor, the
 repair trigger at 0.55, and the review threshold at 0.45 were chosen by watching
 what they did to held-out accuracy. That is test-set contamination, and it means
@@ -200,7 +214,7 @@ here is not a passing grade, it is a gap.
 Full detail in `reports/evaluation_report.md`, `reports/human_eval.md` and
 `reports/test_output.txt`.
 
-**108 automated tests pass.** Five reliability experiments:
+**114 automated tests pass.** Five reliability experiments:
 
 | Experiment | Result |
 | --- | --- |

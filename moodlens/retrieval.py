@@ -29,6 +29,30 @@ ABSTAIN_BELOW = 0.18
 # scales linearly up to here and is capped after it.
 STRONG_SIMILARITY = 0.55
 
+# KNOWN FAILURE, measured and left in.
+#
+# Short knowledge-base posts made almost entirely of function words ("This is
+# fine") act as attractors. "this is fucking awful" matches "This is fine" at
+# similarity 0.51 on the shared words "this is", and that neighbour outvotes
+# the rules component, which correctly found "awful". The system returns
+# positive at confidence 0.65 for an obviously negative sentence.
+#
+# Two fixes were tried and both were reverted, because both removed the
+# function words that structural matching depends on:
+#
+#   1. Rejecting neighbours that overlap only on function words.
+#      Held-out accuracy 0.83 -> 0.56, because "X was amazing but Y was awful"
+#      and "X was beautiful but Y was miserable" share no content words at all
+#      and are the strongest evidence available for `mixed`.
+#   2. sklearn stop-word removal, keeping negation and discourse markers.
+#      Held-out accuracy 0.83 -> 0.50 and sarcasm 2/3 -> 0/3, because the
+#      sarcastic posts match each other through function-word phrasing
+#      ("oh X, my Y broke right before the Z").
+#
+# The signal that makes retrieval work on sarcasm and mixed feelings is the
+# same signal that makes it fail here. Separating them needs a better
+# similarity model, not a filter on this one.
+
 
 def _normalize(text: str) -> str:
     return " ".join(text.strip().lower().split())

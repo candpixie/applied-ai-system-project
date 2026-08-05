@@ -37,6 +37,16 @@ SLANG_SIGNALS: Dict[str, int] = {
     "fire": 2, "sick": 2, "wicked": 2, "goated": 2, "lit": 2, "slaps": 2,
     "banger": 2, "peak": 2, "clutch": 2, "vibes": 1, "highkey": 1,
     "proud": 2, "grateful": 2,  # strong enough to register as one half of "mixed"
+    # Profanity. The original lab's word lists had none, so "fuck life" scored
+    # exactly zero and came back neutral. In the register this system is aimed
+    # at, profanity is one of the strongest negative signals available.
+    #
+    # Intensifiers ("fucking", "damn", "bloody") are deliberately left out.
+    # They amplify whatever they attach to and flip sign with it: "fucking
+    # awful" and "fucking amazing" would both be scored negative if the
+    # intensifier carried its own weight.
+    "fuck": -2, "fck": -2, "shit": -2, "shitty": -2, "sucks": -2,
+    "wtf": -2, "crap": -1, "fml": -2, "hate": -2,
     "stressed": -2, "exhausted": -2, "drained": -2, "done": -1, "meh": -1,
     "mid": -1, "cooked": -2, "lowkey": -1, "ugh": -2, "cringe": -2,
     ":)": 2, ":-)": 2, ":d": 2, ":(": -2, ":-(": -2, ":/": -1,
