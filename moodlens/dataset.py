@@ -113,6 +113,34 @@ KNOWLEDGE_BASE: List[Tuple[str, str]] = [
     ("I love the design and I hate the price", "mixed"),
     ("nervous and excited at the same time", "mixed"),
 
+    # --- short, blunt, profane ---
+    # Added after hand-testing found the system returning POSITIVE for "this
+    # sucks" and "this is fucking awful". The corpus had no short blunt
+    # negatives at all, so those queries retrieved "This is fine" and "chat
+    # this is peak" on the shared words "this is" and voted with them.
+    # Deliberately phrased differently from the cases that exposed the bug, so
+    # this is new evidence rather than the test answers pasted into the corpus.
+    # Two things had to be true for these to help rather than hurt.
+    #
+    # Balance: a first pass added eight blunt negatives against three
+    # positives, which fixed the profanity cases and then scored "this is
+    # fucking amazing" as NEGATIVE. Short text had become a negative attractor
+    # instead of a positive one, which is not a fix, it is the same bug facing
+    # the other way. Three negatives and three positives now.
+    #
+    # Size: a ten-post version dropped held-out accuracy from 0.83 to 0.72,
+    # and the posts that regressed were unrelated to anything added. Adding
+    # documents changes the inverse-document-frequency of common words, which
+    # perturbs every similarity in the index at once. At 43 documents the
+    # corpus is small enough that ten additions move queries that share no
+    # vocabulary with them. Six additions hold held-out accuracy at 0.83.
+    ("this app sucks honestly", "negative"),
+    ("wtf is this nonsense", "negative"),
+    ("this is complete garbage", "negative"),
+    ("this rules honestly", "positive"),
+    ("this is great, no notes", "positive"),
+    ("wow this is incredible", "positive"),
+
     # --- flat / factual / neutral ---
     ("meeting got moved to 3pm", "neutral"),
     ("I'm fine 🙂", "neutral"),

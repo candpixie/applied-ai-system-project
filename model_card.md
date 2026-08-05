@@ -7,7 +7,7 @@
 | Base project | "The Mood Machine", Module 3 tinker lab |
 | Task | Classify short text as `positive`, `negative`, `neutral` or `mixed` |
 | Components | Rule-based lexicon, TF-IDF retriever, bag-of-words logistic regression, optional LLM tie-breaker |
-| Training data | 43 hand-labeled short posts written by the author |
+| Training data | 49 hand-labeled short posts written by the author |
 | Evaluation data | 18 hand-labeled short posts, held out, never indexed or trained on |
 | Held-out accuracy | 0.83 (15/18) |
 | License / intent | Course project. Not for production, not a clinical tool. |
@@ -130,7 +130,7 @@ perfectly.
 
 ## 3. Data and its biases
 
-The knowledge base is **43 short posts written by one person, me**, plus two
+The knowledge base is **49 short posts written by one person, me**, plus two
 hand-written word lists. The held-out set is 18 more from the same person. This
 is the system's largest weakness and it affects everything downstream.
 
@@ -161,19 +161,28 @@ honestly" labeled `negative` at confidence 0.49, happened exactly this way: two
 components agreed while both were ignorant of the same word, and the system read
 that as support.
 
-**Weak agreeing signals can outvote a strong correct one.** The clearest
-reproduction: `"this is fucking awful"`, `"wtf was that"` and `"this sucks"` all
-come back positive. In each, the rules component reads the profanity correctly
+**Weak agreeing signals can outvote a strong correct one.** `"this is fucking
+awful"` still comes back positive. The rules component reads "awful" correctly
 and says negative at its highest confidence, then loses, because retrieval
-matched junk neighbours on shared function words and the ML model voted off one
-or two known terms. Noisy-OR fusion treats those two low-information signals
-agreeing as corroboration. It is the correlated-failure problem above, and it is
-not rare: it fires on any short post whose vocabulary the components do not
-know. Two retrieval-side fixes were tried and both cost more held-out accuracy
-than they bought, because the function-word phrasing that produces the bad
-matches is the same phrasing that makes sarcasm and `mixed` work. The real fix
-is in fusion, not retrieval: stop counting agreement between two weak signals as
-evidence. All three cases are pinned as known-failure tests.
+matches `"This is fine"` on the shared words *"this is"* and the ML model votes
+off a couple of known terms. Noisy-OR fusion treats those two low-information
+signals agreeing as corroboration. It is the correlated-failure problem above.
+
+Three sibling cases (`"this sucks"`, `"wtf was that"`, `"fuck life"`) had the
+same shape and were fixed, but not by changing the algorithm. Three algorithm
+changes were tried and measured, and every one traded sarcasm for profanity:
+stop-word removal took held-out from 0.83 to 0.50, squaring the vote weight took
+it to 0.72, raising the retrieval abstain threshold took it to 0.67, and all
+three took sarcasm to 0/3. What worked was adding six short blunt posts to the
+knowledge base, which held accuracy at 0.83 and sarcasm at 2/3.
+
+The lesson is the one I keep relearning here: **when a system fails on a whole
+category of input, check whether it has ever seen that category before you touch
+the algorithm.** The lexicon had no profanity in it and the corpus had no short
+blunt insults. That is a data gap, and three days of dial-turning would not have
+closed it. This last case survived the data fix because "awful" was already in
+the lexicon, so its failure really is in fusion, and it stays pinned as a
+known-failure test.
 
 **Thresholds were tuned against the held-out set.** The confidence floor, the
 repair trigger at 0.55, and the review threshold at 0.45 were chosen by watching
@@ -198,7 +207,7 @@ misses indirect disclosure entirely. That trade is deliberate, since the two
 error types have very different costs, but it is not a safety system and must
 not be relied on as one.
 
-**43 examples is very few.** Retrieval only works when something similar has
+**49 examples is very few.** Retrieval only works when something similar has
 already been labeled. When nothing has, retrieval does not fall silent, it
 returns its best bad match and contributes noise. The abstention threshold
 catches the worst of this and not all of it.

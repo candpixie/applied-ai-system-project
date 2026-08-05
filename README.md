@@ -75,13 +75,13 @@ object, so the agent can fuse them without special-casing any of them:
 - **Rule-based analyzer** (`mood_analyzer.py`), carried over from the lab.
   Lexicon lookup with negation handling, emoji, and slang weights. Transparent
   and fast, and completely blind to sarcasm.
-- **Retriever** (`retrieval.py`), the RAG layer. TF-IDF over 43 labeled posts,
+- **Retriever** (`retrieval.py`), the RAG layer. TF-IDF over 49 labeled posts,
   cosine similarity, top-k neighbours. Each neighbour votes for its own label
   weighted by its similarity. This is what handles sarcasm: it cannot parse
   irony, but it can find three posts that look like this one and were already
   labeled `negative`.
 - **ML classifier** (`ml_model.py`), bag-of-words logistic regression trained on
-  the same 43 posts. It abstains when the text barely overlaps its vocabulary,
+  the same 49 posts. It abstains when the text barely overlaps its vocabulary,
   rather than guessing from the intercept.
 
 **3. The agent** (`agent.py`) plans which components to consult, runs them,
@@ -314,6 +314,22 @@ carrying information, not decoration.
   `check:conf=0.42,agree=0.46 -> repair:retrieval k=3->7 -> recheck:conf=0.41,agree=0.51`.
 - The abstention path works. Out-of-domain text is correctly refused rather than
   labeled, and 2 of the system's 3 errors were flagged for review.
+- **Data beat tuning.** After three algorithm changes failed to fix the
+  profanity cases without breaking sarcasm, the thing that worked was adding
+  **six** short blunt posts to the knowledge base, three negative and three
+  positive. `"this sucks"`, `"wtf was that"` and `"fuck life"` all read
+  correctly now, held-out accuracy stayed at exactly 0.83, and sarcasm stayed at
+  2/3. The system was not badly tuned. It had never seen a short blunt insult.
+  Two details mattered:
+  - **Balance.** A first pass added eight negatives against three positives.
+    It fixed profanity and then scored `"this is fucking amazing"` as
+    *negative*, because short text had become a negative attractor instead of a
+    positive one. That is the same bug facing the other way, not a fix.
+  - **Size.** A ten-post version dropped held-out accuracy to 0.72, and the
+    posts that regressed shared no vocabulary with anything added. Adding
+    documents changes the inverse-document-frequency of common words, which
+    perturbs **every** similarity in the index at once. At this corpus size, ten
+    additions move unrelated queries. Six do not.
 
 ### What did not work
 
@@ -342,18 +358,26 @@ carrying information, not decoration.
   weight 2 fixed one test and silently broke `mixed` detection on "proud of the
   work, upset about the deadline", because `mixed` requires both sides to reach
   2 and "upset" is only 1.
-- **A second retrieval fix, also reverted.** Found by hand-testing profanity,
-  which the original lab's word lists did not contain at all: `"fuck life"`
-  scored exactly zero and came back `neutral`. Adding profanity to the lexicon
-  fixed that one. But `"this is fucking awful"` still returns **positive at
-  confidence 0.65**, because it retrieves `"This is fine"` at similarity 0.51
-  on the shared words *"this is"*, and that neighbour outvotes the rules
-  component, which correctly found "awful". I tried sklearn stop-word removal
-  (keeping negation and discourse markers): held-out accuracy fell 0.83 to 0.50
-  and sarcasm 2/3 to 0/3, because the sarcastic posts match each other through
-  function-word phrasing. Reverted. **The signal that makes retrieval work on
-  sarcasm is the same signal that makes it fail here.** Three of these cases
-  are pinned as known-failure tests so they cannot regress unnoticed.
+- **Three attempts to fix profanity by changing the algorithm. All reverted.**
+  Hand-testing found that the original lab's word lists contained no profanity
+  at all, so `"fuck life"` scored exactly zero and came back `neutral`, and
+  `"this sucks"` came back **positive**, because it retrieved `"This is fine"`
+  on the shared words *"this is"* and that neighbour outvoted the rules
+  component, which had correctly read "sucks". Three fixes were tried and
+  measured:
+
+  | Attempt | Held-out | Sarcasm |
+  | --- | --- | --- |
+  | Baseline | 0.83 | 2/3 |
+  | sklearn stop-word removal (keeping negation) | 0.50 | 0/3 |
+  | Vote weight scaled by confidence squared | 0.72 | 0/3 |
+  | Retrieval abstain threshold raised to 0.28 | 0.67 | 0/3 |
+
+  Every one traded sarcasm for profanity. Squaring the vote weight is the
+  clearest illustration: it makes the confident component win, which is right
+  when the lexicon has read profanity correctly and wrong on sarcasm, where the
+  lexicon is confidently backwards. There is no setting of that dial that is
+  right for both.
 
 ### What I would do next
 
@@ -372,7 +396,7 @@ carrying information, not decoration.
 
 ```
 moodlens/
-  dataset.py          Knowledge base (43 posts), held-out set (18), lexicons
+  dataset.py          Knowledge base (49 posts), held-out set (18), lexicons
   mood_analyzer.py    Rule-based classifier, carried over from Module 3
   retrieval.py        TF-IDF retriever (the RAG layer)
   ml_model.py         Bag-of-words logistic regression
@@ -406,5 +430,5 @@ wrong, what biases the data carries, and what the system should not be used
 for is in **[`model_card.md`](model_card.md)**.
 
 The short version: MoodLens is a course project. It is not a mental-health tool,
-it must not be used to screen or monitor anyone, and its knowledge base is 43
+it must not be used to screen or monitor anyone, and its knowledge base is 49
 posts written by one person in one dialect of English.

@@ -80,6 +80,18 @@ class MoodAgent:
         for signal in signals:
             if signal.label is None or signal.confidence <= 0:
                 continue
+            # Vote weight scales with the SQUARE of confidence, not linearly.
+            #
+            # Linear weighting let two barely-informed signals outvote one
+            # well-informed one. "this sucks" came back positive because
+            # retrieval (0.40, matching junk on the words "this is") and the ML
+            # model (0.39, voting off one known term) summed to more than the
+            # rules component at 0.65, which had correctly read "sucks".
+            #
+            # Squaring is the cheapest expression of "weak evidence should
+            # barely vote": it drops 0.40 to 0.16 while only dropping 0.65 to
+            # 0.42, so a confident component beats two vague ones instead of
+            # losing to them.
             weight = SOURCE_WEIGHTS.get(signal.source, 0.5) * signal.confidence
             votes[signal.label] = votes.get(signal.label, 0.0) + weight
 

@@ -23,10 +23,10 @@ tests/test_agent.py::TestBehaviour::test_two_opposed_feelings_are_mixed PASSED [
 tests/test_agent.py::TestBehaviour::test_flat_factual_text_is_neutral PASSED [ 15%]
 tests/test_agent.py::TestProfanity::test_profanity_reads_as_negative[fuck life] PASSED [ 16%]
 tests/test_agent.py::TestProfanity::test_profanity_reads_as_negative[fuck this shit] PASSED [ 17%]
-tests/test_agent.py::TestProfanity::test_intensifiers_do_not_carry_their_own_polarity PASSED [ 18%]
-tests/test_agent.py::TestProfanity::test_known_failure_weak_signals_outvote_a_strong_one[this is fucking awful] PASSED [ 19%]
-tests/test_agent.py::TestProfanity::test_known_failure_weak_signals_outvote_a_strong_one[wtf was that] PASSED [ 20%]
-tests/test_agent.py::TestProfanity::test_known_failure_weak_signals_outvote_a_strong_one[this sucks] PASSED [ 21%]
+tests/test_agent.py::TestProfanity::test_profanity_reads_as_negative[wtf was that] PASSED [ 18%]
+tests/test_agent.py::TestProfanity::test_profanity_reads_as_negative[this sucks] PASSED [ 19%]
+tests/test_agent.py::TestProfanity::test_intensifiers_do_not_carry_their_own_polarity PASSED [ 20%]
+tests/test_agent.py::TestProfanity::test_known_failure_weak_signals_outvote_a_strong_one PASSED [ 21%]
 tests/test_agent.py::TestSafetyAndAbstention::test_crisis_text_gets_no_mood_label PASSED [ 21%]
 tests/test_agent.py::TestSafetyAndAbstention::test_crisis_text_never_reaches_the_classifiers PASSED [ 22%]
 tests/test_agent.py::TestSafetyAndAbstention::test_out_of_domain_text_is_flagged_for_review PASSED [ 23%]
@@ -118,4 +118,4 @@ tests/test_retrieval.py::TestRetrievalSignal::test_confidence_never_reaches_cert
 tests/test_retrieval.py::TestRetrievalSignal::test_evidence_includes_the_neighbours_that_were_used PASSED [ 99%]
 tests/test_retrieval.py::TestRetrievalSignal::test_abstain_threshold_is_respected PASSED [100%]
 
-============================= 114 passed in 1.63s ==============================
+============================= 114 passed in 1.29s ==============================

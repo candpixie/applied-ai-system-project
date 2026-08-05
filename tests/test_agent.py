@@ -78,7 +78,9 @@ class TestProfanity:
     """The original lab's word lists had no profanity, so "fuck life" scored
     zero and came back neutral. Found by hand-testing, not by the harness."""
 
-    @pytest.mark.parametrize("text", ["fuck life", "fuck this shit"])
+    @pytest.mark.parametrize(
+        "text", ["fuck life", "fuck this shit", "wtf was that", "this sucks"]
+    )
     def test_profanity_reads_as_negative(self, agent, text):
         assert agent.analyze(text).label == "negative"
 
@@ -87,28 +89,26 @@ class TestProfanity:
         # weight of its own, this would come out negative.
         assert agent.analyze("this is fucking amazing").label == "positive"
 
-    @pytest.mark.parametrize(
-        "text", ["this is fucking awful", "wtf was that", "this sucks"]
-    )
-    def test_known_failure_weak_signals_outvote_a_strong_one(self, agent, text):
+    def test_known_failure_weak_signals_outvote_a_strong_one(self, agent):
         """Asserts current WRONG behaviour so it cannot regress unnoticed.
 
-        In each of these the rules component correctly reads the profanity and
-        says negative with its highest confidence. It loses anyway, because
-        retrieval matches junk neighbours on shared function words ("this is",
-        "that ... was") and the ML model votes off one or two known terms, and
-        noisy-OR fusion treats those two weak agreeing signals as corroboration.
+        The rules component correctly reads "awful" and says negative at its
+        highest confidence. It loses anyway: retrieval matches "This is fine"
+        on the shared words "this is", the ML model votes off a couple of known
+        terms, and noisy-OR fusion treats those two weak agreeing signals as
+        corroboration.
 
-        This is the correlated-failure limitation in model_card.md section 4,
-        reproduced. Fusion assumes the components fail independently. On short
-        text with unknown vocabulary they fail together, in the same direction.
+        This is the correlated-failure limitation in model_card.md section 4.
+        Fusion assumes the components fail independently; on short text with
+        unknown vocabulary they fail together, in the same direction.
 
-        Two retrieval-side fixes were tried and reverted (see retrieval.py);
-        both cost more held-out accuracy than they bought. The real fix is to
-        stop treating agreement between two low-information signals as
-        evidence, which is a change to fusion, not to retrieval.
+        Three other cases in this shape ("this sucks", "wtf was that", "fuck
+        life") were fixed by adding six blunt short posts to the knowledge
+        base, which is the fix that worked. This one survived that, because
+        "awful" is already in the lexicon so the failure is purely in fusion,
+        not in missing evidence.
         """
-        decision = agent.analyze(text)
+        decision = agent.analyze("this is fucking awful")
         rules_signal = next(s for s in decision.signals if s.source == "rules")
         assert rules_signal.label == "negative"      # the lexicon is right
         assert decision.label != "negative"          # and gets outvoted anyway
