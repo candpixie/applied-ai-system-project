@@ -15,11 +15,19 @@ wrong response to that.
 
 | | |
 | --- | --- |
-| Held-out accuracy | **0.83** (15/18), against 0.50 for the original rule-based lab |
-| Accuracy when confident (>= 0.60) | **1.00** (7/7) |
-| Accuracy when not confident | 0.73 (8/11) |
+| Held-out accuracy | **0.83** (15/18), 95% CI [0.67, 1.00] |
+| vs the original rule-based lab (0.50) | significant, p = 0.031 (exact McNemar) |
+| vs its own best single component (0.72) | **not** significant, p = 0.50 |
+| Accuracy when confident (>= 0.60) | **1.00** (8/8) |
+| Accuracy when not confident | 0.70 (7/10) |
 | Tests | 114 passing |
 | Runs offline | Yes. No API key needed for anything in this README |
+
+Those last two rows matter as much as the first. Eighteen evaluation posts means
+one post is worth 5.6 percentage points, so the confidence intervals are wide
+and they overlap. This system clears the bar its base project set. It has **not**
+demonstrated that combining three components beats using the best one alone, and
+this README does not claim it has.
 
 ---
 
@@ -277,12 +285,26 @@ reliability harness (`python evaluate.py`, output in
 
 ### Does the system beat its parts?
 
-| Configuration | Held-out accuracy |
-| --- | --- |
-| Rule-based only (the original lab) | 0.50 (9/18) |
-| ML only | 0.72 (13/18) |
-| Retrieval only | 0.67 (12/18) |
-| **Full agent** | **0.83 (15/18)** |
+| Configuration | Held-out accuracy | 95% CI |
+| --- | --- | --- |
+| Rule-based only (the original lab) | 0.50 (9/18) | [0.28, 0.72] |
+| ML only | 0.72 (13/18) | [0.50, 0.89] |
+| Retrieval only | 0.61 (11/18) | [0.39, 0.83] |
+| **Full agent** | **0.83 (15/18)** | [0.67, 1.00] |
+
+Point estimates alone would oversell this, so each comparison is also tested
+item by item with an exact McNemar test:
+
+| Comparison | p | Verdict |
+| --- | --- | --- |
+| agent vs rule-based lab | 0.031 | significant |
+| agent vs retrieval only | 0.289 | **not** significant |
+| agent vs ML only | 0.500 | **not** significant |
+
+**The honest reading:** the agent wins every comparison, and only the one
+against the original lab survives a significance test. The rest show a
+consistent direction on too little data. That is a reason to collect a larger
+evaluation set, not a reason to phrase the result more confidently.
 
 By category, against the original rule-based baseline:
 

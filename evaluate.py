@@ -18,10 +18,11 @@ Usage:  python evaluate.py            # writes the report
 """
 
 import argparse
+import random
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 from moodlens import MLMoodModel, MoodAgent, MoodAnalyzer, MoodRetriever
 from moodlens.dataset import HELD_OUT, HELD_OUT_TAGS, KNOWLEDGE_BASE
@@ -29,6 +30,63 @@ from moodlens.guardrails import check_input
 
 REPORT_PATH = Path("reports/evaluation_report.md")
 HIGH_CONFIDENCE = 0.60
+
+# Bootstrap settings. Seeded so the report is reproducible.
+BOOTSTRAP_SAMPLES = 10_000
+BOOTSTRAP_SEED = 20260804
+
+
+def bootstrap_ci(
+    correct: Sequence[bool], confidence: float = 0.95
+) -> Tuple[float, float]:
+    """Percentile bootstrap confidence interval for an accuracy.
+
+    Eighteen evaluation posts means one post is worth 5.6 percentage points, so
+    a difference of "0.83 versus 0.72" may be a single item changing its mind.
+    Reporting a point estimate alone invites a reader to believe a precision
+    this evaluation does not have.
+    """
+    n = len(correct)
+    if n == 0:
+        return (0.0, 0.0)
+
+    rng = random.Random(BOOTSTRAP_SEED)
+    values = list(correct)
+    means = []
+    for _ in range(BOOTSTRAP_SAMPLES):
+        sample = [values[rng.randrange(n)] for _ in range(n)]
+        means.append(sum(sample) / n)
+    means.sort()
+
+    tail = (1.0 - confidence) / 2.0
+    low = means[int(tail * BOOTSTRAP_SAMPLES)]
+    high = means[min(BOOTSTRAP_SAMPLES - 1, int((1.0 - tail) * BOOTSTRAP_SAMPLES))]
+    return (low, high)
+
+
+def mcnemar_exact(a_correct: Sequence[bool], b_correct: Sequence[bool]) -> float:
+    """Exact McNemar test comparing two systems on the SAME items.
+
+    Only the items where the two disagree carry information. With n this small
+    the answer is nearly always "not significant", which is the point: it stops
+    a 0.11 gap on 18 posts from being reported as if it were a finding.
+    """
+    a_only = sum(1 for a, b in zip(a_correct, b_correct) if a and not b)
+    b_only = sum(1 for a, b in zip(a_correct, b_correct) if b and not a)
+    n = a_only + b_only
+    if n == 0:
+        return 1.0
+
+    # Two-sided exact binomial test at p = 0.5 over the discordant pairs.
+    def comb(total: int, k: int) -> int:
+        result = 1
+        for i in range(k):
+            result = result * (total - i) // (i + 1)
+        return result
+
+    k = min(a_only, b_only)
+    tail = sum(comb(n, i) for i in range(k + 1)) / (2**n)
+    return min(1.0, 2 * tail)
 
 
 # ---------------------------------------------------------------------------
@@ -214,11 +272,56 @@ def build_report() -> str:
     # 1. Ablation
     add("## 1. Ablation: does the system beat its parts?")
     add("")
-    add("| Configuration | Correct | Accuracy |")
-    add("| --- | --- | --- |")
+
+    key_by_name = {
+        "rules only": "rules",
+        "ml only": "ml",
+        "retrieval only": "retrieval",
+        "full agent": "agent",
+    }
+    vectors = {
+        name: [row[key] == row["truth"] for row in rows]
+        for name, key in key_by_name.items()
+    }
+
+    add("| Configuration | Correct | Accuracy | 95% CI |")
+    add("| --- | --- | --- | --- |")
     for name in ["rules only", "ml only", "retrieval only", "full agent"]:
-        hits = round(accuracy[name] * total)
-        add(f"| {name} | {hits}/{total} | {accuracy[name]:.2f} |")
+        hits = sum(vectors[name])
+        low, high = bootstrap_ci(vectors[name])
+        add(
+            f"| {name} | {hits}/{total} | {accuracy[name]:.2f} "
+            f"| [{low:.2f}, {high:.2f}] |"
+        )
+    add("")
+    add(
+        f"**Read the intervals, not just the point estimates.** With {total} "
+        "evaluation posts, one post is worth "
+        f"{100 / total:.1f} percentage points, so these intervals are wide and "
+        "they overlap. The table below tests the comparisons directly, pairing "
+        "the systems item by item."
+    )
+    add("")
+
+    add("### Is the full agent significantly better than each part?")
+    add("")
+    add("| Comparison | Agent right, other wrong | Other right, agent wrong | p (exact McNemar) | Verdict |")
+    add("| --- | --- | --- | --- | --- |")
+    for name in ["rules only", "ml only", "retrieval only"]:
+        agent_vec, other_vec = vectors["full agent"], vectors[name]
+        a_only = sum(1 for a, b in zip(agent_vec, other_vec) if a and not b)
+        b_only = sum(1 for a, b in zip(agent_vec, other_vec) if b and not a)
+        p = mcnemar_exact(agent_vec, other_vec)
+        verdict = "significant" if p < 0.05 else "**not** significant"
+        add(f"| agent vs {name} | {a_only} | {b_only} | {p:.3f} | {verdict} |")
+    add("")
+    add(
+        "This is the honest reading of the headline number. The agent wins on "
+        "every comparison, but at this sample size most of those wins are not "
+        "statistically distinguishable from luck. The ablation shows a "
+        "consistent direction, not a proven margin, and the fix is a larger "
+        "evaluation set rather than a better argument."
+    )
     add("")
 
     # 2. Per-category

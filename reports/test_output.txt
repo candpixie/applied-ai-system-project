@@ -118,4 +118,4 @@ tests/test_retrieval.py::TestRetrievalSignal::test_confidence_never_reaches_cert
 tests/test_retrieval.py::TestRetrievalSignal::test_evidence_includes_the_neighbours_that_were_used PASSED [ 99%]
 tests/test_retrieval.py::TestRetrievalSignal::test_abstain_threshold_is_respected PASSED [100%]
 
-============================= 114 passed in 1.29s ==============================
+============================= 114 passed in 1.28s ==============================

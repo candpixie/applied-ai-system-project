@@ -184,6 +184,20 @@ closed it. This last case survived the data fix because "awful" was already in
 the lexicon, so its failure really is in fusion, and it stays pinned as a
 known-failure test.
 
+**The evaluation set is too small to support the comparison it is used for.**
+Eighteen posts means one post is worth 5.6 percentage points. Bootstrapping the
+headline 0.83 gives a 95% interval of [0.67, 1.00], and pairing the systems item
+by item shows that only the comparison against the original rule-based lab is
+statistically significant (p = 0.031). The agent beating ML alone, 0.83 against
+0.72, has p = 0.50. It is a coin flip.
+
+I could have left the point estimates in and let the table imply more than it
+proves. Reporting the intervals makes the project look weaker and the claim
+look sound, which is the trade I want. The real conclusion is that "does
+combining three components beat using the best one" is a question this
+evaluation **cannot answer**, and answering it needs several hundred labeled
+posts, not a better argument.
+
 **Thresholds were tuned against the held-out set.** The confidence floor, the
 repair trigger at 0.55, and the review threshold at 0.45 were chosen by watching
 what they did to held-out accuracy. That is test-set contamination, and it means
@@ -227,7 +241,8 @@ Full detail in `reports/evaluation_report.md`, `reports/human_eval.md` and
 
 | Experiment | Result |
 | --- | --- |
-| Ablation | Full agent 0.83, ML alone 0.72, retrieval alone 0.67, rules alone 0.50 |
+| Ablation | Full agent 0.83 [0.67, 1.00], ML alone 0.72, retrieval alone 0.61, rules alone 0.50 |
+| Significance | vs the original lab p = 0.031 (significant); vs ML alone p = 0.50 and vs retrieval alone p = 0.29 (**not** significant) |
 | Per-category | Sarcasm 0/3 to 2/3, mixed 0/4 to 3/4 against the original lab baseline |
 | Calibration | 1.00 accuracy when confidence >= 0.60, 0.73 below it |
 | Determinism | 20 identical runs produce 1 distinct answer, with the LLM path off |
